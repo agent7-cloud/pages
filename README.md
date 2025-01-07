@@ -10,7 +10,7 @@ git clone --branch main https://github.com/agent7-cloud/pages.git
 
 # 更新
 _date=`date '+%Y%m%d-%H%M%S'`
-cd ~/Users/infra02/MEGAsync/github.com/pages
+cd ~/MEGAsync/github.com/pages
 _date=`date '+%Y%m%d-%H%M%S'`
 git add .
 git commit -m "add ${_date}"
