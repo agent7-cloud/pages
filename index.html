@@ -6,7 +6,7 @@
   <title>文件站</title>
   <style>
       body {
-          font-family: Arial, sans-serif;
+          font-family: 'Arial', sans-serif;
           line-height: 1.6;
           max-width: 1200px;
           margin: 0 auto;
@@ -35,15 +35,20 @@
           border-radius: 4px;
           min-height: 400px;
           overflow-x: auto;
+          border: 1px solid #e0e0e0;
       }
-      .download-btn {
-          background-color: #4CAF50;
-          color: white;
-          border: none;
-          padding: 10px 20px;
-          text-decoration: none;
+      #errorContainer {
+          color: red;
+          margin-top: 10px;
+      }
+      .debug-info {
+          background-color: #f0f0f0;
+          padding: 10px;
+          margin-top: 10px;
           border-radius: 4px;
-          cursor: pointer;
+          font-size: 0.8em;
+          white-space: pre-wrap;
+          word-wrap: break-word;
       }
   </style>
 </head>
@@ -59,30 +64,102 @@
       <div id="documentContent">
           <p>歡迎來到我的文件站！請從上方下拉選單選擇要查看的文件。</p>
       </div>
+
+      <div id="errorContainer"></div>
+      <div id="debugContainer" class="debug-info"></div>
   </div>
 
   <script>
+      // 調試日誌函數
+      function debugLog(message) {
+          const debugContainer = document.getElementById('debugContainer');
+          debugContainer.textContent += message + '\n';
+      }
+
+      // 顯示錯誤信息
+      function showError(message) {
+          const errorContainer = document.getElementById('errorContainer');
+          errorContainer.textContent = message;
+          console.error(message);
+      }
+
+      // 清除錯誤信息
+      function clearError() {
+          const errorContainer = document.getElementById('errorContainer');
+          errorContainer.textContent = '';
+      }
+
       // 動態載入文件列表
       async function loadDocumentList() {
-          try {
-              const response = await fetch('doc/');
-              const text = await response.text();
-              const parser = new DOMParser();
-              const htmlDoc = parser.parseFromString(text, 'text/html');
-              const links = htmlDoc.querySelectorAll('a');
-              const select = document.getElementById('docSelect');
+          const select = document.getElementById('docSelect');
+          select.innerHTML = '<option value="">載入中...</option>';
+          clearError();
 
-              links.forEach(link => {
-                  // 篩選 Markdown 文件
-                  if (link.href.toLowerCase().endsWith('.md')) {
-                      const option = document.createElement('option');
-                      option.value = link.href;
-                      option.textContent = link.textContent.replace(/\//g, '');
-                      select.appendChild(option);
+          try {
+              debugLog('開始嘗試獲取文件列表');
+
+              // 嘗試多種路徑
+              const paths = [
+                  '/doc/',
+                  './doc/',
+                  '../doc/',
+                  '/docs/',
+                  './docs/'
+              ];
+
+              let successPath = null;
+              for (const path of paths) {
+                  try {
+                      const response = await fetch(path, {
+                          method: 'GET',
+                          headers: {
+                              'Accept': 'text/html,application/xhtml+xml,application/xml'
+                          }
+                      });
+
+                      debugLog(`嘗試路徑: ${path}, 狀態: ${response.status}`);
+
+                      if (response.ok) {
+                          const text = await response.text();
+                          debugLog(`獲取目錄內容成功: ${text.substring(0, 200)}...`);
+
+                          // 使用更寬鬆的正則表達式
+                          const fileNameRegex = /href=["']?([^"'>]+\.md)["']?/gi;
+                          let match;
+                          const mdFiles = [];
+
+                          while ((match = fileNameRegex.exec(text)) !== null) {
+                              mdFiles.push(match[1]);
+                          }
+
+                          if (mdFiles.length > 0) {
+                              successPath = path;
+                              select.innerHTML = '<option value="">選擇文件</option>';
+                              
+                              mdFiles.forEach(file => {
+                                  const option = document.createElement('option');
+                                  option.value = `${path}${file}`;
+                                  option.textContent = file;
+                                  select.appendChild(option);
+                              });
+
+                              debugLog(`找到 ${mdFiles.length} 個 Markdown 文件`);
+                              return;
+                          }
+                      }
+                  } catch (pathError) {
+                      debugLog(`路徑 ${path} 嘗試失敗: ${pathError.message}`);
                   }
-              });
+              }
+
+              if (!successPath) {
+                  throw new Error('未找到可用的文件目錄');
+              }
+
           } catch (error) {
-              console.error('無法載入文件列表', error);
+              debugLog(`載入文件列表錯誤: ${error.message}`);
+              showError(`無法載入文件列表：${error.message}`);
+              select.innerHTML = '<option value="">無法載入文件列表</option>';
           }
       }
 
@@ -91,6 +168,7 @@
           const select = document.getElementById('docSelect');
           const url = select.value;
           const documentContent = document.getElementById('documentContent');
+          clearError();
 
           if (!url) {
               documentContent.innerHTML = '<p>歡迎來到我的文件站！請從上方下拉選單選擇要查看的文件。</p>';
@@ -98,19 +176,28 @@
           }
 
           try {
+              debugLog(`開始載入文件：${url}`);
               const response = await fetch(url);
+
+              if (!response.ok) {
+                  throw new Error(`HTTP error! status: ${response.status}`);
+              }
+
               const markdownText = await response.text();
-              
-              // 直接顯示 Markdown 內容
-              documentContent.innerHTML = markdownText;
+              documentContent.innerHTML = `<pre>${markdownText}</pre>`;
+              debugLog('文件載入成功');
+
           } catch (error) {
-              console.error('無法載入文件', error);
+              debugLog(`文件載入錯誤: ${error.message}`);
+              showError(`無法載入文件：${error.message}`);
               documentContent.textContent = '文件載入失敗';
           }
       }
 
       // 初始化：頁面載入時自動載入文件列表
-      document.addEventListener('DOMContentLoaded', loadDocumentList);
+      document.addEventListener('DOMContentLoaded', () => {
+          loadDocumentList().catch(console.error);
+      });
   </script>
 </body>
 </html>
