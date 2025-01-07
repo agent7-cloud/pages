@@ -1,2 +1,164 @@
-test
-test2
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的文件站</title>
+  <style>
+      body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          height: 100vh;
+      }
+      .sidebar {
+          width: 250px;
+          background-color: #f4f4f4;
+          padding: 20px;
+          box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+      }
+      .navbar {
+          display: flex;
+          background-color: #333;
+          color: white;
+          padding: 10px 20px;
+      }
+      .navbar a {
+          color: white;
+          text-decoration: none;
+          margin-right: 15px;
+          padding: 5px 10px;
+      }
+      .navbar a:hover {
+          background-color: #555;
+      }
+      .content {
+          flex-grow: 1;
+          padding: 20px;
+          overflow-y: auto;
+      }
+      #docSelect {
+          width: 100%;
+          padding: 10px;
+          margin-bottom: 20px;
+      }
+      .main-content {
+          margin-top: 50px;
+      }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+      <h3>文件目錄</h3>
+      <select id="docSelect" onchange="loadDocument()">
+          <option value="">選擇文件</option>
+          <!-- 這裡會動態填入 doc 目錄的 Markdown 文件 -->
+      </select>
+      <div id="documentContent"></div>
+  </div>
+
+  <div class="content">
+      <nav class="navbar">
+          <a href="#" onclick="showHome()">首頁</a>
+          <a href="#" onclick="showDownloads()">下載</a>
+      </nav>
+
+      <div class="main-content" id="mainContent">
+          <h1>歡迎來到我的文件站</h1>
+          <p>這是一個靜態網站，提供文件瀏覽和下載服務。</p>
+      </div>
+  </div>
+
+  <script>
+      // 動態載入 doc 目錄的文件列表
+      async function loadDocumentList() {
+          try {
+              const response = await fetch('/doc');
+              const text = await response.text();
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(text, 'text/html');
+              const links = htmlDoc.querySelectorAll('a');
+              const select = document.getElementById('docSelect');
+
+              links.forEach(link => {
+                  if (link.href.endsWith('.md')) {
+                      const option = document.createElement('option');
+                      option.value = link.href;
+                      option.textContent = link.textContent;
+                      select.appendChild(option);
+                  }
+              });
+          } catch (error) {
+              console.error('無法載入文件列表', error);
+          }
+      }
+
+      // 載入 Markdown 文件
+      async function loadDocument() {
+          const select = document.getElementById('docSelect');
+          const url = select.value;
+          const documentContent = document.getElementById('documentContent');
+
+          if (!url) return;
+
+          try {
+              const response = await fetch(url);
+              const markdownText = await response.text();
+              
+              // 使用 marked.js 轉換 Markdown（需要在 HTML 中引入 marked.js）
+              documentContent.innerHTML = marked.parse(markdownText);
+          } catch (error) {
+              console.error('無法載入文件', error);
+              documentContent.textContent = '文件載入失敗';
+          }
+      }
+
+      // 顯示下載頁面
+      function showDownloads() {
+          const mainContent = document.getElementById('mainContent');
+          mainContent.innerHTML = `
+              <h2>下載中心</h2>
+              <div id="downloadLinks"></div>
+          `;
+
+          // 動態載入 download 目錄的檔案
+          fetch('/download')
+              .then(response => response.text())
+              .then(text => {
+                  const parser = new DOMParser();
+                  const htmlDoc = parser.parseFromString(text, 'text/html');
+                  const links = htmlDoc.querySelectorAll('a');
+                  const downloadLinksDiv = document.getElementById('downloadLinks');
+
+                  links.forEach(link => {
+                      const fileLink = document.createElement('div');
+                      fileLink.innerHTML = `
+                          <a href="${link.href}" download>
+                              📁 ${link.textContent}
+                          </a>
+                      `;
+                      downloadLinksDiv.appendChild(fileLink);
+                  });
+              });
+      }
+
+      // 顯示首頁
+      function showHome() {
+          const mainContent = document.getElementById('mainContent');
+          mainContent.innerHTML = `
+              <h1>歡迎來到我的文件站</h1>
+              <p>這是一個靜態網站，提供文件瀏覽和下載服務。</p>
+          `;
+      }
+
+      // 頁面載入時初始化
+      document.addEventListener('DOMContentLoaded', () => {
+          loadDocumentList();
+      });
+  </script>
+
+  <!-- 引入 marked.js 用於 Markdown 轉換 -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</body>
+</html>
